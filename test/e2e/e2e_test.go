@@ -18,6 +18,10 @@ package e2e
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -37,4 +41,28 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	// Cleanup is done by Resource Group DeferCleanup
+	dumpMaestroResources()
 })
+
+// dumpMaestroResources dumps the Maestro DB resources table to the artifact
+// directory for post-mortem analysis of status feedback delivery issues.
+func dumpMaestroResources() {
+	artifactDir := os.Getenv("ARTIFACT_DIR")
+	if artifactDir == "" {
+		return
+	}
+	cmd := exec.Command("kubectl", "exec", "-n", "maestro",
+		"deployment/maestro-db", "-c", "postgresql", "--",
+		"bash", "-c",
+		`psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "COPY (SELECT id, name, consumer_name, source, status, created_at, updated_at FROM resources) TO STDOUT WITH CSV HEADER;"`,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maestro db dump failed (non-fatal): %v\n", err)
+		return
+	}
+	outPath := filepath.Join(artifactDir, "maestro-resources.csv")
+	if err := os.WriteFile(outPath, output, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write maestro db dump: %v\n", err)
+	}
+}
