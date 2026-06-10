@@ -60,7 +60,17 @@ type TaggedRow struct {
 	QueryType QueryType
 }
 
+// kustoRegionOverrides maps Azure regions to the actual region where their
+// Kusto cluster is hosted. For example, the canary region eastus2euap uses
+// a Kusto cluster in eastus2.
+var kustoRegionOverrides = map[string]string{
+	"eastus2euap": "eastus2",
+}
+
 func KustoEndpoint(clusterName, region string) (*url.URL, error) {
+	if override, ok := kustoRegionOverrides[region]; ok {
+		region = override
+	}
 	url, err := url.Parse(fmt.Sprintf("https://%s.%s.kusto.windows.net", clusterName, region))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Kusto endpoint URL: %w", err)
