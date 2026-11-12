@@ -86,17 +86,18 @@ kube-prometheus-stack:
         # Schedule CRs live in namespace velero as
         # {hostedClusterNamespace}-{cadence}. Promote namespace from the
         # CR name to ocm-* so remoteWrite routes them to the HCP workspace
-        # (ARO-30331). Same ocm-<env>-<id> shape / __name__ scoping as
-        # #8035 for veleroBackup_* / veleroDeleteBackupRequest_* — if that
-        # PR lands first, append this rule to its metricRelabelings list
-        # instead of adding a second key.
+        # (ARO-30331). Scoped via the customresource_group/kind labels KSM
+        # adds to every custom-resource-state metric. Do not match on the
+        # metric-name label here: Ev2 resolve treats any double-underscore
+        # wrapped token in this file (comments included) as a config
+        # placeholder and the manifest generation fails.
         metricRelabelings:
         - action: replace
-          sourceLabels: [__name__, name]
+          sourceLabels: [customresource_group, customresource_kind, name]
           separator: ;
           # Cluster Service IDs are lowercase alphanumeric (not hex-only);
           # e.g. docs/etcd-restore.md uses ...-2sd1pej7kdkk1qvccoiqq534ae1knhh4-...
-          regex: 'veleroSchedule[^;]*;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
+          regex: 'velero\.io;Schedule;(ocm-[a-z][a-z0-9]{0,9}-[a-z0-9]{32}).*'
           targetLabel: namespace
           replacement: '${1}'
     image:
